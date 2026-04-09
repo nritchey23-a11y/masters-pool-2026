@@ -897,6 +897,16 @@ function computeStandings(espnData) {
       const pos = posData ? posData.pos : null;
       const isTied = posData ? posData.tied : false;
       const scoreToPar = player.score || 'E';
+      // Determine thru for current round
+      let thruHoles = '';
+      const curPeriod = comp.status?.period || 1;
+      for (const ls of (player.linescores || [])) {
+        if (ls.period === curPeriod) {
+          const done = (ls.linescores || []).filter(h => h.value != null && String(h.value) !== '').length;
+          thruHoles = done === 18 ? 'F' : done > 0 ? done : '';
+          break;
+        }
+      }
       const perRoundHole = [0,0,0,0];
       const perRoundStreak = [0,0,0,0];
       const perRoundBF = [0,0,0,0];
@@ -941,7 +951,7 @@ function computeStandings(espnData) {
         missedCut: actuallyMissedCut,
         isWD,
         insideCut: !actuallyMissedCut && !isWD && insideCut,
-        pos, isTied, scoreToPar,
+        pos, isTied, scoreToPar, thruHoles,
         perRoundHole, perRoundStreak, perRoundBF,
         totalHP, totalSB, totalBF,
         allIn60s, allIn60sBonus, finishPts, total,
@@ -1067,7 +1077,7 @@ function renderTeamCard(standing, idx) {
           <span class="golfer-name">${g.name}</span>
           <span class="rd-badge">Rd ${g.draftRound} · #${g.overallPick}</span>
           ${g.missedCut ? '<span class="mc-badge">MC</span>' : g.isWD ? '<span class="mc-badge">WD</span>' : g.insideCut ? '<span class="cut-in-badge">✓ In</span>' : '<span class="cut-out-badge">✗ Out</span>'}
-          ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos, g.isTied)} (${formatScoreToPar(g.scoreToPar)})</span>` : ''}
+          ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos, g.isTied)} (${formatScoreToPar(g.scoreToPar)}) ${g.thruHoles ? (g.thruHoles === 'F' ? '· F' : '· Thru ' + g.thruHoles) : ''}</span>` : ''}
         </div>
         ${rows.join('')}
         <span class="cell ${bonusTotal ? 'bonus' : 'zero'}">${bonusTotal || '—'}</span>
