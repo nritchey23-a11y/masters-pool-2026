@@ -269,6 +269,22 @@
       color: #f87171;
       border: 1px solid rgba(248,113,113,0.25);
     }
+    .belly-cage-badge {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      background: rgba(248,113,113,0.15);
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.35);
+      flex-shrink: 0;
+      animation: pulse-warn 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-warn {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
     .cut-in-badge {
       font-size: 9px;
       font-weight: 600;
@@ -1099,6 +1115,7 @@ function renderTeamCard(standing, idx) {
               <span class="team-name">${standing.ownerName}</span>
               <span class="draft-pick-badge">Pick ${standing.draftPick}</span>
               <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 in cut</span>
+              ${standing.insideCutCount < 3 ? '<span class="belly-cage-badge">⚠️ BELLY CAGE</span>' : ''}
               ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
             </div>
             <div class="team-meta">
