@@ -690,6 +690,75 @@
       font-size: 10px;
       color: rgba(245,240,225,0.35);
     }
+    /* Movement arrows */
+    .move-up { color: #4ade80; font-size: 11px; font-weight: 700; margin-left: 0.35rem; }
+    .move-down { color: #f87171; font-size: 11px; font-weight: 700; margin-left: 0.35rem; }
+    .move-flat { color: rgba(245,240,225,0.2); font-size: 11px; margin-left: 0.35rem; }
+    /* Activity Feed */
+    .feed-container {
+      margin-bottom: 1rem;
+      border: 1px solid rgba(0,103,71,0.25);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    .feed-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 0.875rem;
+      background: rgba(0,103,71,0.1);
+      cursor: pointer;
+    }
+    .feed-header:hover { background: rgba(0,103,71,0.15); }
+    .feed-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(245,240,225,0.5);
+    }
+    .feed-badge {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 0.15rem 0.4rem;
+      border-radius: 9999px;
+      background: rgba(212,175,55,0.15);
+      color: var(--gold);
+      border: 1px solid rgba(212,175,55,0.3);
+    }
+    .feed-body {
+      max-height: 220px;
+      overflow-y: auto;
+      display: none;
+    }
+    .feed-body.open { display: block; }
+    .feed-empty {
+      padding: 1rem;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(245,240,225,0.3);
+    }
+    .feed-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0.875rem;
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      font-size: 12px;
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-icon { font-size: 14px; flex-shrink: 0; }
+    .feed-text { flex: 1; color: rgba(245,240,225,0.7); }
+    .feed-owner {
+      font-size: 10px;
+      color: rgba(245,240,225,0.3);
+      flex-shrink: 0;
+    }
+    .feed-hot .feed-text { color: var(--gold); font-weight: 500; }
+    .feed-birdie .feed-text { color: #4ade80; }
+    .feed-bad .feed-text { color: #f87171; }
+    .feed-body::-webkit-scrollbar { width: 4px; }
+    .feed-body::-webkit-scrollbar-thumb { background: rgba(0,103,71,0.3); border-radius: 2px; }
   </style>
 </head>
 <body>
@@ -726,6 +795,13 @@
       <button class="tab-btn" onclick="switchTab('odds')">Live Odds</button>
     </div>
     <div id="tabPool" class="tab-content active">
+    <div class="feed-container">
+      <div class="feed-header" onclick="document.getElementById('feedBody').classList.toggle('open')">
+        <span class="feed-title">Live Activity Feed</span>
+        <span class="feed-badge" id="feedCount">0 events</span>
+      </div>
+      <div class="feed-body" id="feedBody"></div>
+    </div>
     <div class="podium" id="podium"></div>
     <details class="scoring-ref">
       <summary>Scoring Reference ▾</summary>
@@ -1128,7 +1204,7 @@ function renderTeamCard(standing, idx) {
     <div class="team-card ${borderClass}">
       <button class="team-header" onclick="toggleCard('${cardId}')">
         <div class="team-header-left">
-          <span class="rank-badge" style="background:${rs.bg};color:${rs.color};border-color:${rs.border}">${standing.rank}</span>
+          <span class="rank-badge" style="background:${rs.bg};color:${rs.color};border-color:${rs.border}">${standing.rank}</span>${renderMovement(standing.movement)}
           <div>
             <div class="team-name-row">
               <span class="team-name">${standing.ownerName}</span>
@@ -1181,6 +1257,109 @@ function formatTime(isoStr) {
     const d = new Date(isoStr);
     return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
   } catch(e) { return ''; }
+}
+
+// ─── Rank Movement ────────────────────────────────────────────────────────
+const previousRanks = {};
+function updateMovement(standings) {
+  standings.forEach(s => {
+    const prev = previousRanks[s.ownerName];
+    s.movement = prev !== undefined ? prev - s.rank : 0;
+    previousRanks[s.ownerName] = s.rank;
+  });
+}
+
+function renderMovement(movement) {
+  if (movement === 0 || movement === undefined) return '<span class="move-flat">—</span>';
+  if (movement > 0) return `<span class="move-up">▲${movement}</span>`;
+  return `<span class="move-down">▼${Math.abs(movement)}</span>`;
+}
+
+// ─── Live Activity Feed ──────────────────────────────────────────────────
+const prevHoleData = {}; // golferName -> { round -> [scores] }
+const activityLog = [];
+const MAX_EVENTS = 30;
+
+function detectEvents(espnData) {
+  const comp = espnData.events[0].competitions[0];
+  const competitors = comp.competitors;
+  const curRound = comp.status?.period || 1;
+  const newEvents = [];
+
+  Object.entries(TEAMS).forEach(([owner, info]) => {
+    info.golfers.forEach(gname => {
+      const p = findPlayer(competitors, gname);
+      if (!p) return;
+      const displayName = p.athlete?.displayName || gname;
+
+      for (let rd = 1; rd <= 4; rd++) {
+        const holes = extractHoleScores(p, rd);
+        const prevKey = gname + '_r' + rd;
+        const prev = prevHoleData[prevKey] || new Array(18).fill(null);
+
+        for (let h = 0; h < 18; h++) {
+          if (holes[h] !== null && prev[h] === null) {
+            // New hole completed
+            const par = AUGUSTA_PARS[h];
+            const diff = holes[h] - par;
+            const holeNum = h + 1;
+
+            if (diff <= -3) {
+              newEvents.push({ icon: '🌟', text: `${displayName} — Double Eagle on #${holeNum}!`, owner, type: 'dbl_eagle', time: Date.now() });
+            } else if (diff === -2 && par === 3 && holes[h] === 1) {
+              newEvents.push({ icon: '🎯', text: `${displayName} — HOLE IN ONE on #${holeNum}!`, owner, type: 'hio', time: Date.now() });
+            } else if (diff === -2) {
+              newEvents.push({ icon: '🦅', text: `${displayName} — Eagle on #${holeNum}`, owner, type: 'eagle', time: Date.now() });
+            } else if (diff === -1) {
+              newEvents.push({ icon: '🐦', text: `${displayName} — Birdie on #${holeNum}`, owner, type: 'birdie', time: Date.now() });
+            } else if (diff === 1) {
+              newEvents.push({ icon: '⚠️', text: `${displayName} — Bogey on #${holeNum}`, owner, type: 'bogey', time: Date.now() });
+            } else if (diff >= 2) {
+              newEvents.push({ icon: '💥', text: `${displayName} — Double bogey+ on #${holeNum}`, owner, type: 'double', time: Date.now() });
+            }
+
+            // Check for birdie streak (3+ consecutive birdies ending at this hole)
+            let streak = 0;
+            for (let sh = h; sh >= 0; sh--) {
+              if (holes[sh] !== null && holes[sh] - AUGUSTA_PARS[sh] < 0) streak++;
+              else break;
+            }
+            if (streak === 3) {
+              newEvents.push({ icon: '🔥', text: `${displayName} — 3-birdie streak!`, owner, type: 'streak', time: Date.now() });
+            } else if (streak > 3) {
+              newEvents.push({ icon: '🔥', text: `${displayName} — ${streak}-birdie streak!`, owner, type: 'streak', time: Date.now() });
+            }
+
+            // Bogey-free round complete
+            if (holeNum === 18) {
+              const hasBogey = holes.some((s, i) => s !== null && s - AUGUSTA_PARS[i] > 0);
+              if (!hasBogey) {
+                newEvents.push({ icon: '✨', text: `${displayName} — Bogey-free round complete!`, owner, type: 'bogey_free', time: Date.now() });
+              }
+            }
+          }
+        }
+        prevHoleData[prevKey] = [...holes];
+      }
+    });
+  });
+
+  // Add new events to the front of the log
+  activityLog.unshift(...newEvents.reverse());
+  if (activityLog.length > MAX_EVENTS) activityLog.length = MAX_EVENTS;
+  return newEvents.length > 0;
+}
+
+function renderActivityFeed() {
+  if (activityLog.length === 0) return '<div class="feed-empty">Waiting for events...</div>';
+  return activityLog.map(e => {
+    const typeClass = ['eagle','dbl_eagle','hio','streak','bogey_free'].includes(e.type) ? 'feed-hot' : e.type === 'birdie' ? 'feed-birdie' : 'feed-bad';
+    return `<div class="feed-item ${typeClass}">
+      <span class="feed-icon">${e.icon}</span>
+      <span class="feed-text">${e.text}</span>
+      <span class="feed-owner">${e.owner}</span>
+    </div>`;
+  }).join('');
 }
 
 // ─── Expand All ──────────────────────────────────────────────────────────────
@@ -1581,6 +1760,12 @@ async function loadScores() {
     document.getElementById('lastUpdated').innerHTML =
       `<svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
        <span>Updated ${now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</span>`;
+
+    // Detect events and update movement
+    detectEvents(data);
+    updateMovement(standings);
+    document.getElementById('feedBody').innerHTML = renderActivityFeed();
+    document.getElementById('feedCount').textContent = activityLog.length + ' events';
 
     document.getElementById('podium').innerHTML = renderPodium(standings);
     document.getElementById('standings').innerHTML = standings.map((s,i) => renderTeamCard(s,i)).join('');
