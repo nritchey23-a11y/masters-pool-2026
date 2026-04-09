@@ -1354,8 +1354,8 @@ function runOddsSimulation(espnData) {
     });
   });
 
-  const wins={},top3={},ptsSum={};
-  Object.keys(TEAMS).forEach(o=>{wins[o]=0;top3[o]=0;ptsSum[o]=0;});
+  const wins={},top2={},ptsSum={};
+  Object.keys(TEAMS).forEach(o=>{wins[o]=0;top2[o]=0;ptsSum[o]=0;});
 
   for(let sim=0;sim<SIM_COUNT;sim++){
     // Simulate finish positions with noise for all competitors
@@ -1429,7 +1429,7 @@ function runOddsSimulation(espnData) {
 
     const sorted=Object.entries(teamTotals).sort((a,b)=>b[1]-a[1]);
     wins[sorted[0][0]]++;
-    sorted.slice(0,3).forEach(([t])=>top3[t]++);
+    sorted.slice(0,2).forEach(([t])=>top2[t]++);
     Object.entries(teamTotals).forEach(([t,p])=>ptsSum[t]+=p);
   }
 
@@ -1494,14 +1494,14 @@ function runOddsSimulation(espnData) {
     else if(prob>0)odds='+'+Math.round(100*(1-prob)/prob);
     else odds='+99999';
     const proj = projections[owner];
-    return{owner,winPct:Math.round(prob*1000)/10,odds,top3Pct:Math.round(top3[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
+    return{owner,winPct:Math.round(prob*1000)/10,odds,top2Pct:Math.round(top2[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
       projTotal:proj.projTotal, projCurrent:proj.currentPts, projFinish:proj.projFinish, projCutPen:proj.cutPenalty, projCutCount:proj.insideCut};
   }).sort((a,b)=>b.winPct-a.winPct);
 }
 
 function renderOdds(oddsData) {
   const maxWin=Math.max(...oddsData.map(d=>d.winPct));
-  const maxT3=Math.max(...oddsData.map(d=>d.top3Pct));
+  const maxT2=Math.max(...oddsData.map(d=>d.top2Pct));
   let html=`<div class="odds-header">
     <div class="odds-title">Live Vegas Odds</div>
     <div class="odds-sub">Monte Carlo simulation · ${SIM_COUNT.toLocaleString()} scenarios · Updates with scores</div>
@@ -1527,8 +1527,8 @@ function renderOdds(oddsData) {
             <div class="odds-bar"><div class="odds-bar-fill win" style="width:${(d.winPct/maxWin)*100}%"></div></div>
           </div>
           <div class="odds-bar-item">
-            <span>Top 3 ${d.top3Pct}%</span>
-            <div class="odds-bar"><div class="odds-bar-fill top3" style="width:${(d.top3Pct/maxT3)*100}%"></div></div>
+            <span>Top 2 ${d.top2Pct}%</span>
+            <div class="odds-bar"><div class="odds-bar-fill top3" style="width:${(d.top2Pct/maxT2)*100}%"></div></div>
           </div>
           <span class="odds-avg">Expected finish ${d.avgPts} pts</span>
         </div>
