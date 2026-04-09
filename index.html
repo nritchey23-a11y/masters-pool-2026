@@ -229,6 +229,28 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .draft-pick-badge {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.45rem;
+      border-radius: 9999px;
+      background: rgba(0,103,71,0.15);
+      color: rgba(245,240,225,0.5);
+      border: 1px solid rgba(0,103,71,0.3);
+      flex-shrink: 0;
+    }
+    .rd-badge {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      background: rgba(0,103,71,0.12);
+      color: rgba(245,240,225,0.4);
+      border: 1px solid rgba(0,103,71,0.2);
+      flex-shrink: 0;
+    }
     .your-team-badge {
       font-size: 9px;
       font-weight: 700;
@@ -455,16 +477,16 @@ const ESPN_URL = 'https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/sco
 const REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 const TEAMS = {
-  'Justin (Doc)': ['Scottie Scheffler', 'Akshay Bhatia', 'Brooks Koepka', 'Gary Woodland', 'Brian Harman', 'Sergio Garcia'],
-  'Wheats':       ['Jon Rahm', 'Russell Henley', 'Adam Scott', 'Sam Burns', 'Cameron Smith', 'Alex Noren'],
-  'Pat':          ['Ludvig Aberg', 'Shane Lowry', 'Sungjae Im', 'Aaron Rai', 'Max Homa', 'Nick Taylor'],
-  'JB':           ['Xander Schauffele', 'Robert MacIntyre', 'Patrick Reed', 'Marco Penge', 'Maverick McNealy', 'Ryan Fox'],
-  'Kelly':        ['Rory McIlroy', 'Patrick Cantlay', 'Tyrrell Hatton', 'J.J. Spaun', 'Rasmus Hojgaard', 'Haotong Li'],
-  'Ben':          ['Bryson DeChambeau', 'Viktor Hovland', 'Chris Gotterup', 'Si Woo Kim', 'Justin Thomas', 'Ryan Gerard'],
-  'Ian':          ['Tommy Fleetwood', 'Min Woo Lee', 'Jason Day', 'Kurt Kitayama', 'Wyndham Clark', 'Carlos Ortiz'],
-  'Berit':        ['Collin Morikawa', 'Cameron Young', 'Harris English', 'Corey Conners', 'Daniel Berger', 'Keegan Bradley'],
-  'Trizz':        ['Matt Fitzpatrick', 'Justin Rose', 'Sepp Straka', 'Jacob Bridgeman', 'Casey Jarvis', 'Zach Johnson'],
-  'Nick':         ['Hideki Matsuyama', 'Jordan Spieth', 'Jake Knapp', 'Nicolai Hojgaard', 'Ben Griffin', 'Matt McCarty'],
+  'Justin (Doc)': { pick: 1, golfers: ['Scottie Scheffler', 'Akshay Bhatia', 'Brooks Koepka', 'Gary Woodland', 'Brian Harman', 'Sergio Garcia'] },
+  'Wheats':       { pick: 2, golfers: ['Jon Rahm', 'Russell Henley', 'Adam Scott', 'Sam Burns', 'Cameron Smith', 'Alex Noren'] },
+  'Pat':          { pick: 3, golfers: ['Ludvig Aberg', 'Shane Lowry', 'Sungjae Im', 'Aaron Rai', 'Max Homa', 'Nick Taylor'] },
+  'JB':           { pick: 4, golfers: ['Xander Schauffele', 'Robert MacIntyre', 'Patrick Reed', 'Marco Penge', 'Maverick McNealy', 'Ryan Fox'] },
+  'Kelly':        { pick: 5, golfers: ['Rory McIlroy', 'Patrick Cantlay', 'Tyrrell Hatton', 'J.J. Spaun', 'Rasmus Hojgaard', 'Haotong Li'] },
+  'Ben':          { pick: 6, golfers: ['Bryson DeChambeau', 'Viktor Hovland', 'Chris Gotterup', 'Si Woo Kim', 'Justin Thomas', 'Ryan Gerard'] },
+  'Ian':          { pick: 7, golfers: ['Tommy Fleetwood', 'Min Woo Lee', 'Jason Day', 'Kurt Kitayama', 'Wyndham Clark', 'Carlos Ortiz'] },
+  'Berit':        { pick: 8, golfers: ['Collin Morikawa', 'Cameron Young', 'Harris English', 'Corey Conners', 'Daniel Berger', 'Keegan Bradley'] },
+  'Trizz':        { pick: 9, golfers: ['Matt Fitzpatrick', 'Justin Rose', 'Sepp Straka', 'Jacob Bridgeman', 'Casey Jarvis', 'Zach Johnson'] },
+  'Nick':         { pick: 10, golfers: ['Hideki Matsuyama', 'Jordan Spieth', 'Jake Knapp', 'Nicolai Hojgaard', 'Ben Griffin', 'Matt McCarty'] },
 };
 
 const AUGUSTA_PARS = [4,5,4,3,4,3,4,5,4,4,4,3,5,4,5,3,4,4];
@@ -571,8 +593,10 @@ function computeStandings(espnData) {
   const positions = determinePositions(competitors);
   const standings = [];
 
-  Object.entries(TEAMS).forEach(([ownerName, roster], teamIdx) => {
+  Object.entries(TEAMS).forEach(([ownerName, teamInfo], teamIdx) => {
     const teamId = teamIdx + 1;
+    const draftPick = teamInfo.pick;
+    const roster = teamInfo.golfers;
     const golferData = [];
 
     roster.forEach((golferName, draftIdx) => {
@@ -634,7 +658,7 @@ function computeStandings(espnData) {
     const teamTotal = countingPts + bonusPts + finishTotal + cutPenalty;
 
     standings.push({
-      ownerName, golfers: golferData,
+      ownerName, draftPick, golfers: golferData,
       countingPts, bonusPts, finishTotal, cutPenalty, total: teamTotal,
     });
   });
@@ -724,6 +748,7 @@ function renderTeamCard(standing, idx) {
       <div class="golfer-row${mcClass}">
         <div class="golfer-name-cell">
           <span class="golfer-name">${g.name}</span>
+          <span class="rd-badge">Rd ${g.draftRound}</span>
           ${g.missedCut ? '<span class="mc-badge">MC</span>' : ''}
           ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos)}</span>` : ''}
         </div>
@@ -745,6 +770,7 @@ function renderTeamCard(standing, idx) {
           <div>
             <div class="team-name-row">
               <span class="team-name">${standing.ownerName}</span>
+              <span class="draft-pick-badge">Pick ${standing.draftPick}</span>
               ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
             </div>
             <div class="team-meta">
