@@ -251,6 +251,44 @@
       border: 1px solid rgba(0,103,71,0.2);
       flex-shrink: 0;
     }
+    .cut-count-badge {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 0.2rem 0.45rem;
+      border-radius: 9999px;
+      flex-shrink: 0;
+    }
+    .cut-count-badge.cut-safe {
+      background: rgba(74,222,128,0.1);
+      color: #4ade80;
+      border: 1px solid rgba(74,222,128,0.25);
+    }
+    .cut-count-badge.cut-danger {
+      background: rgba(248,113,113,0.1);
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.25);
+    }
+    .cut-in-badge {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      background: rgba(74,222,128,0.1);
+      color: #4ade80;
+      border: 1px solid rgba(74,222,128,0.25);
+      flex-shrink: 0;
+    }
+    .cut-out-badge {
+      font-size: 9px;
+      font-weight: 600;
+      padding: 0.15rem 0.35rem;
+      border-radius: 3px;
+      background: rgba(248,113,113,0.1);
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.25);
+      flex-shrink: 0;
+    }
     .your-team-badge {
       font-size: 9px;
       font-weight: 700;
@@ -583,6 +621,25 @@ function determinePositions(competitors) {
   return positions;
 }
 
+function parseScore(scoreStr) {
+  if (!scoreStr || scoreStr === 'E') return 0;
+  return parseInt(scoreStr);
+}
+
+function determineCutLine(competitors) {
+  // Masters: top 50 + ties make the cut after Round 2
+  const sorted = [...competitors].sort((a,b) => (a.order||999)-(b.order||999));
+  if (sorted.length < 50) return { cutScore: null, cutPos: 50 };
+  const p50Score = parseScore(sorted[49].score);
+  // Find last position that ties with the 50th player's score
+  let cutPos = 50;
+  for (let i=50; i<sorted.length; i++) {
+    if (parseScore(sorted[i].score) === p50Score) cutPos = i+1;
+    else break;
+  }
+  return { cutScore: p50Score, cutPos };
+}
+
 function computeStandings(espnData) {
   const event = espnData.events[0];
   const comp = event.competitions[0];
@@ -591,6 +648,7 @@ function computeStandings(espnData) {
   const isComplete = compStatus.completed || false;
   const statusDetail = compStatus.detail || '';
   const positions = determinePositions(competitors);
+  const { cutScore, cutPos } = determineCutLine(competitors);
   const standings = [];
 
   Object.entries(TEAMS).forEach(([ownerName, teamInfo], teamIdx) => {
@@ -629,10 +687,19 @@ function computeStandings(espnData) {
       const finishPts = isComplete ? (FINISH_POINTS[pos]||0) : 0;
       const total = totalHP + totalSB + totalBF + allIn60sBonus + finishPts;
 
+      // Determine if inside projected cut (top 50 + ties)
+      const playerOrder = player.order || 999;
+      const insideCut = playerOrder <= cutPos;
+      const playerStatus = player.status?.type?.name || '';
+      const actuallyMissedCut = playerStatus === 'cut';
+      const isWD = playerStatus === 'wd';
+
       golferData.push({
         name: golferName,
         draftRound: draftIdx+1,
-        missedCut: false,
+        missedCut: actuallyMissedCut,
+        isWD,
+        insideCut: !actuallyMissedCut && !isWD && insideCut,
         pos,
         perRoundHole, perRoundStreak, perRoundBF,
         totalHP, totalSB, totalBF,
@@ -657,9 +724,12 @@ function computeStandings(espnData) {
     const cutPenalty = (madeCut < 3 && anyCut) ? -10 : 0;
     const teamTotal = countingPts + bonusPts + finishTotal + cutPenalty;
 
+    const insideCutCount = golferData.filter(g => g.insideCut).length;
+
     standings.push({
       ownerName, draftPick, golfers: golferData,
       countingPts, bonusPts, finishTotal, cutPenalty, total: teamTotal,
+      insideCutCount,
     });
   });
 
@@ -749,7 +819,7 @@ function renderTeamCard(standing, idx) {
         <div class="golfer-name-cell">
           <span class="golfer-name">${g.name}</span>
           <span class="rd-badge">Rd ${g.draftRound}</span>
-          ${g.missedCut ? '<span class="mc-badge">MC</span>' : ''}
+          ${g.missedCut ? '<span class="mc-badge">MC</span>' : g.isWD ? '<span class="mc-badge">WD</span>' : g.insideCut ? '<span class="cut-in-badge">✓ In</span>' : '<span class="cut-out-badge">✗ Out</span>'}
           ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos)}</span>` : ''}
         </div>
         ${rows.join('')}
@@ -771,6 +841,7 @@ function renderTeamCard(standing, idx) {
             <div class="team-name-row">
               <span class="team-name">${standing.ownerName}</span>
               <span class="draft-pick-badge">Pick ${standing.draftPick}</span>
+              <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 in cut</span>
               ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
             </div>
             <div class="team-meta">
