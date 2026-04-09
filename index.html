@@ -674,6 +674,22 @@
       font-size: 10px;
       color: rgba(245,240,225,0.3);
     }
+    .odds-proj {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.375rem;
+      flex-wrap: wrap;
+    }
+    .odds-proj-total {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--cream);
+    }
+    .odds-proj-detail {
+      font-size: 10px;
+      color: rgba(245,240,225,0.35);
+    }
   </style>
 </head>
 <body>
@@ -1342,55 +1358,73 @@ function runOddsSimulation(espnData) {
   Object.keys(TEAMS).forEach(o=>{wins[o]=0;top3[o]=0;ptsSum[o]=0;});
 
   for(let sim=0;sim<SIM_COUNT;sim++){
-    // Simulate finish positions with noise
-    const finScores=competitors.map(c=>{
-      const cur=parseScore(c.score);
-      const remRds=Math.max(0,4-curRound)+0.5;
-      return{name:normalize(c.athlete?.displayName||''),score:cur+gaussRandom()*SCORE_STD*Math.sqrt(remRds)};
-    }).sort((a,b)=>a.score-b.score);
-    const finPos={};
-    let fi=0;
-    while(fi<finScores.length){
-      const s=finScores[fi].score;let fj=fi+1;
-      while(fj<finScores.length&&Math.abs(finScores[fj].score-s)<0.01)fj++;
-      for(let k=fi;k<fj;k++)finPos[finScores[k].name]=fi+1;
-      fi=fj;
+    // Simulate finish positions with noise for all competitors
+    // Use less noise for R2 cut projection (only ~1.5 rounds to cut)
+    const cutNoiseScale = Math.max(0.5, 2 - curRound * 0.5); // less noise as we get closer to cut
+    const finNoiseScale = Math.max(0, 4 - curRound) + 0.5; // full tourney noise for finish
+    
+    // Simulate R2 scores to determine who makes the cut (top 50 + ties)
+    const cutScores = competitors.map(c => {
+      const cur = parseScore(c.score);
+      return { name: normalize(c.athlete?.displayName||''), score: cur + gaussRandom() * SCORE_STD * Math.sqrt(cutNoiseScale) };
+    }).sort((a,b) => a.score - b.score);
+    
+    // Cut line: score of 50th player, everyone at that score or better makes it
+    const simCutScore = cutScores.length >= 50 ? cutScores[49].score : 999;
+    const simCutMap = {};
+    cutScores.forEach(c => { simCutMap[c.name] = c.score <= simCutScore + 0.01; });
+    
+    // Simulate final finish positions (full tournament noise)
+    const finScores = competitors.map(c => {
+      const cur = parseScore(c.score);
+      return { name: normalize(c.athlete?.displayName||''), score: cur + gaussRandom() * SCORE_STD * Math.sqrt(finNoiseScale) };
+    }).sort((a,b) => a.score - b.score);
+    const finPos = {};
+    let fi = 0;
+    while (fi < finScores.length) {
+      const s = finScores[fi].score; let fj = fi + 1;
+      while (fj < finScores.length && Math.abs(finScores[fj].score - s) < 0.01) fj++;
+      for (let k = fi; k < fj; k++) finPos[finScores[k].name] = fi + 1;
+      fi = fj;
     }
 
     // Compute team totals
-    const teamTotals={};
-    Object.entries(TEAMS).forEach(([owner,info])=>{
-      const gData=[];
-      info.golfers.forEach(gname=>{
-        const st=gStates[gname];
-        if(!st){gData.push({pr:[0,0,0,0],bon:0,fin:0,mc:true});return;}
-        const pr=[...st.curPts];
-        let bon=st.curStreak.reduce((a,b)=>a+b,0);
-        let bf=st.curBF.filter(Boolean).length*3;
-        for(let rd=0;rd<4;rd++){
-          const rem=18-st.holesDone[rd];
-          if(rd+1===curRound&&rem>0){
-            const s=simHoles(rem);pr[rd]+=s.pts;bon+=s.sb;
-          }else if(rd+1>curRound){
-            const s=simHoles(18);pr[rd]=s.pts;bon+=s.sb;
-            if(!s.hasBogey)bf+=3;
+    const teamTotals = {};
+    Object.entries(TEAMS).forEach(([owner, info]) => {
+      const gData = [];
+      info.golfers.forEach(gname => {
+        const st = gStates[gname];
+        if (!st) { gData.push({pr:[0,0,0,0], bon:0, fin:0, mc:true}); return; }
+        const pr = [...st.curPts];
+        let bon = st.curStreak.reduce((a,b) => a+b, 0);
+        let bf = st.curBF.filter(Boolean).length * 3;
+        for (let rd = 0; rd < 4; rd++) {
+          const rem = 18 - st.holesDone[rd];
+          if (rd+1 === curRound && rem > 0) {
+            const s = simHoles(rem); pr[rd] += s.pts; bon += s.sb;
+          } else if (rd+1 > curRound) {
+            const s = simHoles(18); pr[rd] = s.pts; bon += s.sb;
+            if (!s.hasBogey) bf += 3;
           }
         }
-        const pos=finPos[normalize(gname)]||999;
-        const fp=FINISH_POINTS[Math.min(pos,40)]||0;
-        const mc=pos>55;
-        gData.push({pr,bon:bon+bf,fin:fp,mc});
+        const norm = normalize(gname);
+        const pos = finPos[norm] || 999;
+        const fp = FINISH_POINTS[Math.min(pos, 40)] || 0;
+        // Use simulated cut determination
+        const madeSimCut = simCutMap[norm] !== undefined ? simCutMap[norm] : false;
+        gData.push({pr, bon: bon+bf, fin: madeSimCut ? fp : 0, mc: !madeSimCut});
       });
-      let counting=0;
-      for(let rd=0;rd<4;rd++){
-        const topN=rd<2?5:3;
-        counting+=gData.map(g=>g.pr[rd]).sort((a,b)=>b-a).slice(0,topN).reduce((a,b)=>a+b,0);
+      let counting = 0;
+      for (let rd = 0; rd < 4; rd++) {
+        const topN = rd < 2 ? 5 : 3;
+        counting += gData.map(g => g.pr[rd]).sort((a,b) => b-a).slice(0, topN).reduce((a,b) => a+b, 0);
       }
-      const bonT=gData.reduce((a,g)=>a+g.bon,0);
-      const finT=gData.reduce((a,g)=>a+g.fin,0);
-      const mc=gData.filter(g=>!g.mc).length;
-      const cp=(mc<3&&gData.some(g=>g.mc))?-10:0;
-      teamTotals[owner]=counting+bonT+finT+cp;
+      const bonT = gData.reduce((a,g) => a + g.bon, 0);
+      const finT = gData.reduce((a,g) => a + g.fin, 0);
+      const mcCount = gData.filter(g => !g.mc).length;
+      const anyMC = gData.some(g => g.mc);
+      const cp = (mcCount < 3 && anyMC) ? -10 : 0;
+      teamTotals[owner] = counting + bonT + finT + cp;
     });
 
     const sorted=Object.entries(teamTotals).sort((a,b)=>b[1]-a[1]);
@@ -1399,13 +1433,69 @@ function runOddsSimulation(espnData) {
     Object.entries(teamTotals).forEach(([t,p])=>ptsSum[t]+=p);
   }
 
+  // Compute deterministic projected finish for each team
+  // Current points + finish points based on current leaderboard position
+  const projections = {};
+  Object.entries(TEAMS).forEach(([owner, info]) => {
+    let projFinish = 0;
+    let insideCut = 0;
+    let currentPts = 0;
+    let currentBonus = 0;
+    const golferProjections = [];
+
+    info.golfers.forEach(gname => {
+      const st = gStates[gname];
+      if (!st) { golferProjections.push({ name: gname, fp: 0, inCut: false }); return; }
+      
+      // Current hole + bonus points
+      const hp = st.curPts.reduce((a,b) => a+b, 0);
+      const sb = st.curStreak.reduce((a,b) => a+b, 0);
+      const bf = st.curBF.filter(Boolean).length * 3;
+      
+      // Check if inside projected cut (top 50 + ties)
+      const { cutPos: cp2 } = determineCutLine(competitors);
+      const inCut = st.order <= cp2;
+      if (inCut) insideCut++;
+      
+      // Finish points based on current position
+      const fp = inCut ? (FINISH_POINTS[Math.min(st.order, 40)] || 0) : 0;
+      projFinish += fp;
+      golferProjections.push({ name: gname, fp, inCut, order: st.order });
+    });
+
+    // Counting points (top 5 Thu/Fri, top 3 Sat/Sun)
+    const st2 = Object.entries(TEAMS).map(([o, inf]) => {
+      return inf.golfers.map(g => gStates[g]).filter(Boolean);
+    });
+    // Recompute counting from gStates for this team
+    const teamGolfers = info.golfers.map(g => gStates[g]).filter(Boolean);
+    let counting = 0;
+    for (let rd = 0; rd < 4; rd++) {
+      const topN = rd < 2 ? 5 : 3;
+      const pts = teamGolfers.map(g => g.curPts[rd]).sort((a,b) => b-a);
+      counting += pts.slice(0, topN).reduce((a,b) => a+b, 0);
+    }
+    const bonus = teamGolfers.reduce((a,g) => a + g.curStreak.reduce((x,y)=>x+y,0) + g.curBF.filter(Boolean).length*3, 0);
+    const cutPen = (insideCut < 3 && info.golfers.some(g => gStates[g] && gStates[g].order > 50)) ? -10 : 0;
+    
+    projections[owner] = {
+      currentPts: counting + bonus,
+      projFinish,
+      cutPenalty: cutPen,
+      projTotal: counting + bonus + projFinish + cutPen,
+      insideCut,
+    };
+  });
+
   return Object.keys(TEAMS).map(owner=>{
     const w=wins[owner],prob=w/SIM_COUNT;
     let odds;
     if(prob>0.5)odds=String(Math.round(-100*prob/(1-prob)));
     else if(prob>0)odds='+'+Math.round(100*(1-prob)/prob);
     else odds='+99999';
-    return{owner,winPct:Math.round(prob*1000)/10,odds,top3Pct:Math.round(top3[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10};
+    const proj = projections[owner];
+    return{owner,winPct:Math.round(prob*1000)/10,odds,top3Pct:Math.round(top3[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
+      projTotal:proj.projTotal, projCurrent:proj.currentPts, projFinish:proj.projFinish, projCutPen:proj.cutPenalty, projCutCount:proj.insideCut};
   }).sort((a,b)=>b.winPct-a.winPct);
 }
 
@@ -1440,7 +1530,11 @@ function renderOdds(oddsData) {
             <span>Top 3 ${d.top3Pct}%</span>
             <div class="odds-bar"><div class="odds-bar-fill top3" style="width:${(d.top3Pct/maxT3)*100}%"></div></div>
           </div>
-          <span class="odds-avg">Avg ${d.avgPts} pts</span>
+          <span class="odds-avg">Sim avg ${d.avgPts} pts</span>
+        </div>
+        <div class="odds-proj">
+          <span class="odds-proj-total">Proj: ${d.projTotal} pts</span>
+          <span class="odds-proj-detail">(${d.projCurrent} current + ${d.projFinish} finish${d.projCutPen ? ' ' + d.projCutPen + ' cut pen' : ''})</span>
         </div>
       </div>
       <div class="odds-right">
