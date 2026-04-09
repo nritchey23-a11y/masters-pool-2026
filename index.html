@@ -795,13 +795,6 @@
       <button class="tab-btn" onclick="switchTab('odds')">Live Odds</button>
     </div>
     <div id="tabPool" class="tab-content active">
-    <div class="feed-container">
-      <div class="feed-header" onclick="document.getElementById('feedBody').classList.toggle('open')">
-        <span class="feed-title">Live Activity Feed</span>
-        <span class="feed-badge" id="feedCount">0 events</span>
-      </div>
-      <div class="feed-body" id="feedBody"></div>
-    </div>
     <div class="podium" id="podium"></div>
     <details class="scoring-ref">
       <summary>Scoring Reference ▾</summary>
@@ -1761,11 +1754,8 @@ async function loadScores() {
       `<svg style="width:12px;height:12px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
        <span>Updated ${now.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}</span>`;
 
-    // Detect events and update movement
-    detectEvents(data);
+    // Update movement arrows
     updateMovement(standings);
-    document.getElementById('feedBody').innerHTML = renderActivityFeed();
-    document.getElementById('feedCount').textContent = activityLog.length + ' events';
 
     document.getElementById('podium').innerHTML = renderPodium(standings);
     document.getElementById('standings').innerHTML = standings.map((s,i) => renderTeamCard(s,i)).join('');
