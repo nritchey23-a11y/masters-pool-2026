@@ -567,6 +567,97 @@
         padding: 0.4rem 0.5rem;
       }
     }
+    /* Odds */
+    .odds-header {
+      text-align: center;
+      margin-bottom: 1.25rem;
+    }
+    .odds-title {
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      color: var(--gold);
+      margin-bottom: 0.25rem;
+    }
+    .odds-sub {
+      font-size: 11px;
+      color: rgba(245,240,225,0.35);
+    }
+    .odds-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .odds-card {
+      display: grid;
+      grid-template-columns: 2.5rem 1fr auto;
+      gap: 0.875rem;
+      align-items: center;
+      padding: 0.875rem 1rem;
+      background: rgba(14,28,19,0.8);
+      border: 1px solid rgba(0,103,71,0.25);
+      border-radius: 0.75rem;
+    }
+    .odds-card.odds-favorite {
+      border-color: rgba(212,175,55,0.4);
+      background: rgba(212,175,55,0.04);
+    }
+    .odds-card.odds-nick {
+      border-color: rgba(212,175,55,0.5);
+    }
+    .odds-rank {
+      width: 2.25rem; height: 2.25rem;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 0.5rem;
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .odds-info { min-width: 0; }
+    .odds-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--cream);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .odds-bars {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 0.375rem;
+      font-size: 11px;
+      color: rgba(245,240,225,0.4);
+    }
+    .odds-bar-item { display: flex; align-items: center; gap: 0.35rem; }
+    .odds-bar {
+      width: 60px; height: 4px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .odds-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.5s;
+    }
+    .odds-bar-fill.win { background: var(--gold); }
+    .odds-bar-fill.top3 { background: rgba(245,240,225,0.3); }
+    .odds-right {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .odds-american {
+      font-size: 1.375rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    .odds-american.fav { color: var(--gold); }
+    .odds-american.long { color: rgba(245,240,225,0.5); }
+    .odds-pct {
+      font-size: 10px;
+      color: rgba(245,240,225,0.35);
+      margin-top: 2px;
+    }
+    .odds-avg {
+      font-size: 10px;
+      color: rgba(245,240,225,0.3);
+    }
   </style>
 </head>
 <body>
@@ -600,6 +691,7 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('pool')">Pool Standings</button>
       <button class="tab-btn" onclick="switchTab('leaderboard')">Tournament Leaderboard</button>
+      <button class="tab-btn" onclick="switchTab('odds')">Live Odds</button>
     </div>
     <div id="tabPool" class="tab-content active">
     <div class="podium" id="podium"></div>
@@ -639,6 +731,9 @@
     </div>
     <div id="tabLeaderboard" class="tab-content">
       <div id="leaderboardContent"></div>
+    </div>
+    <div id="tabOdds" class="tab-content">
+      <div id="oddsContent"></div>
     </div>
     <div class="status-bar" id="statusBar"></div>
   </div>
@@ -750,7 +845,8 @@ function determinePositions(competitors) {
     const score = sorted[i].score;
     let j = i+1;
     while (j < sorted.length && sorted[j].score === score) j++;
-    for (let k=i;k<j;k++) positions[sorted[k].id] = i+1;
+    const isTied = (j - i) > 1;
+    for (let k=i;k<j;k++) positions[sorted[k].id] = { pos: i+1, tied: isTied };
     i=j;
   }
   return positions;
@@ -797,7 +893,10 @@ function computeStandings(espnData) {
       if (!player) { console.warn('Not found:', golferName); return; }
 
       const espnId = player.id;
-      const pos = positions[espnId] || null;
+      const posData = positions[espnId] || null;
+      const pos = posData ? posData.pos : null;
+      const isTied = posData ? posData.tied : false;
+      const scoreToPar = player.score || 'E';
       const perRoundHole = [0,0,0,0];
       const perRoundStreak = [0,0,0,0];
       const perRoundBF = [0,0,0,0];
@@ -829,13 +928,20 @@ function computeStandings(espnData) {
       const actuallyMissedCut = playerStatus === 'cut';
       const isWD = playerStatus === 'wd';
 
+      // Snake draft: odd rounds normal order, even rounds reverse
+      const draftRound = draftIdx + 1;
+      const overallPick = (draftRound % 2 === 1)
+        ? (draftRound - 1) * 10 + draftPick
+        : (draftRound - 1) * 10 + (11 - draftPick);
+
       golferData.push({
         name: golferName,
-        draftRound: draftIdx+1,
+        draftRound,
+        overallPick,
         missedCut: actuallyMissedCut,
         isWD,
         insideCut: !actuallyMissedCut && !isWD && insideCut,
-        pos,
+        pos, isTied, scoreToPar,
         perRoundHole, perRoundStreak, perRoundBF,
         totalHP, totalSB, totalBF,
         allIn60s, allIn60sBonus, finishPts, total,
@@ -874,12 +980,18 @@ function computeStandings(espnData) {
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
-function formatPos(pos) {
+function formatPos(pos, tied) {
   if (!pos) return '—';
-  if (pos===1) return '1st';
-  if (pos===2) return '2nd';
-  if (pos===3) return '3rd';
-  return pos+'th';
+  const prefix = tied ? 'T' : '';
+  return prefix + pos;
+}
+
+function formatScoreToPar(s) {
+  if (!s || s === 'E' || s === '0' || s === 0) return 'E';
+  const n = parseInt(s);
+  if (isNaN(n)) return s;
+  if (n > 0 && !String(s).startsWith('+')) return '+' + s;
+  return String(s);
 }
 
 function getRoundLabel(statusDetail) {
@@ -953,9 +1065,9 @@ function renderTeamCard(standing, idx) {
       <div class="golfer-row${mcClass}">
         <div class="golfer-name-cell">
           <span class="golfer-name">${g.name}</span>
-          <span class="rd-badge">Rd ${g.draftRound}</span>
+          <span class="rd-badge">Rd ${g.draftRound} · #${g.overallPick}</span>
           ${g.missedCut ? '<span class="mc-badge">MC</span>' : g.isWD ? '<span class="mc-badge">WD</span>' : g.insideCut ? '<span class="cut-in-badge">✓ In</span>' : '<span class="cut-out-badge">✗ Out</span>'}
-          ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos)}</span>` : ''}
+          ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos, g.isTied)} (${formatScoreToPar(g.scoreToPar)})</span>` : ''}
         </div>
         ${rows.join('')}
         <span class="cell ${bonusTotal ? 'bonus' : 'zero'}">${bonusTotal || '—'}</span>
@@ -1028,10 +1140,11 @@ function formatTime(isoStr) {
 // ─── Tab Switching ────────────────────────────────────────────────────────────
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    btn.classList.toggle('active', (tab==='pool' && i===0) || (tab==='leaderboard' && i===1));
+    btn.classList.toggle('active', (tab==='pool' && i===0) || (tab==='leaderboard' && i===1) || (tab==='odds' && i===2));
   });
   document.getElementById('tabPool').classList.toggle('active', tab==='pool');
   document.getElementById('tabLeaderboard').classList.toggle('active', tab==='leaderboard');
+  document.getElementById('tabOdds').classList.toggle('active', tab==='odds');
 }
 
 // ─── Golfer → Owner Lookup ────────────────────────────────────────────────────
@@ -1048,6 +1161,20 @@ function renderLeaderboard(espnData) {
   const { cutScore, cutPos } = determineCutLine(competitors);
 
   const sorted = [...competitors].sort((a,b) => (a.order||999)-(b.order||999));
+
+  // Build tie-aware positions keyed by order
+  const lbPositions = {};
+  let li = 0;
+  while (li < sorted.length) {
+    const sc = sorted[li].score;
+    let lj = li + 1;
+    while (lj < sorted.length && sorted[lj].score === sc) lj++;
+    const tied = (lj - li) > 1;
+    for (let lk = li; lk < lj; lk++) {
+      lbPositions[sorted[lk].order || lk] = { pos: li + 1, tied };
+    }
+    li = lj;
+  }
 
   let html = `<div class="lb-header-row">
     <span>Pos</span><span>Player</span><span>Score</span><span>Today</span><span>Thru</span>
@@ -1102,7 +1229,9 @@ function renderLeaderboard(espnData) {
       cutLineInserted = true;
     }
 
-    const posClass = order===1 ? 'lb-pos-1' : order===2 ? 'lb-pos-2' : order===3 ? 'lb-pos-3' : '';
+    const lbPosData = lbPositions[order] || { pos: order, tied: false };
+    const posDisplay = (lbPosData.tied ? 'T' : '') + lbPosData.pos;
+    const posClass = lbPosData.pos===1 ? 'lb-pos-1' : lbPosData.pos===2 ? 'lb-pos-2' : lbPosData.pos===3 ? 'lb-pos-3' : '';
     const scoreNum = parseScore(score);
     const scoreClass = scoreNum < 0 ? 'under-par' : scoreNum > 0 ? 'over-par' : 'even-par';
     const todayNum = today === 'E' ? 0 : parseInt(today) || 0;
@@ -1111,7 +1240,7 @@ function renderLeaderboard(espnData) {
     const scoreDisplay = score === '0' || score === 0 || score === 'E' ? 'E' : (scoreNum > 0 && !String(score).startsWith('+') ? '+'+score : score);
 
     html += `<div class="lb-row ${poolClass}">
-      <span class="lb-pos ${posClass}">${order <= 1 ? '1' : order}</span>
+      <span class="lb-pos ${posClass}">${posDisplay}</span>
       <div class="lb-name-cell">
         <span class="lb-player-name">${name}</span>
         ${owner ? `<span class="lb-owner-tag">↳ ${owner}'s team</span>` : ''}
@@ -1122,6 +1251,178 @@ function renderLeaderboard(espnData) {
     </div>`;
   });
 
+  return html;
+}
+
+// ─── Monte Carlo Simulation ────────────────────────────────────────────────────
+const SIM_COUNT = 3000;
+const SCORE_STD = 3.2;
+
+function gaussRandom() {
+  let u=0,v=0;
+  while(u===0) u=Math.random();
+  while(v===0) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+function simHoles(n) {
+  let pts=0, streak=0, streaks=[], hasBogey=false;
+  for(let i=0;i<n;i++) {
+    const r=Math.random();
+    let isBirdPlus=false;
+    if(r<0.0001){pts+=20;isBirdPlus=true;}
+    else if(r<0.0081){pts+=5;isBirdPlus=true;}
+    else if(r<0.1281){pts+=2;isBirdPlus=true;}
+    else if(r<0.7801){/*par*/}
+    else if(r<0.9601){pts-=1;hasBogey=true;}
+    else{pts-=3;hasBogey=true;}
+    if(isBirdPlus){streak++;}else{if(streak>=3)streaks.push(streak);streak=0;}
+  }
+  if(streak>=3)streaks.push(streak);
+  const sb=streaks.reduce((s,l)=>s+3+(l-3),0);
+  return{pts,sb,hasBogey};
+}
+
+function runOddsSimulation(espnData) {
+  const comp=espnData.events[0].competitions[0];
+  const competitors=comp.competitors;
+  const curRound=comp.status?.period||1;
+
+  // Build golfer state
+  const gStates={};
+  Object.entries(TEAMS).forEach(([owner,info])=>{
+    info.golfers.forEach((gname,gi)=>{
+      const p=findPlayer(competitors,gname);
+      if(!p){gStates[gname]=null;return;}
+      const st={owner,curPts:[0,0,0,0],curStreak:[0,0,0,0],curBF:[false,false,false,false],holesDone:[0,0,0,0],rdScores:[],totalVsPar:parseScore(p.score),order:p.order||999};
+      for(let rd=1;rd<=4;rd++){
+        const holes=extractHoleScores(p,rd);
+        const done=holes.filter(h=>h!==null).length;
+        st.holesDone[rd-1]=done;
+        if(done>0){
+          const r=computeRound(holes,AUGUSTA_PARS);
+          st.curPts[rd-1]=r.holePoints;
+          st.curStreak[rd-1]=r.streakBonus;
+          st.curBF[rd-1]=r.bogeyFree;
+          if(r.roundScore!==null)st.rdScores.push(r.roundScore);
+        }
+      }
+      gStates[gname]=st;
+    });
+  });
+
+  const wins={},top3={},ptsSum={};
+  Object.keys(TEAMS).forEach(o=>{wins[o]=0;top3[o]=0;ptsSum[o]=0;});
+
+  for(let sim=0;sim<SIM_COUNT;sim++){
+    // Simulate finish positions with noise
+    const finScores=competitors.map(c=>{
+      const cur=parseScore(c.score);
+      const remRds=Math.max(0,4-curRound)+0.5;
+      return{name:normalize(c.athlete?.displayName||''),score:cur+gaussRandom()*SCORE_STD*Math.sqrt(remRds)};
+    }).sort((a,b)=>a.score-b.score);
+    const finPos={};
+    let fi=0;
+    while(fi<finScores.length){
+      const s=finScores[fi].score;let fj=fi+1;
+      while(fj<finScores.length&&Math.abs(finScores[fj].score-s)<0.01)fj++;
+      for(let k=fi;k<fj;k++)finPos[finScores[k].name]=fi+1;
+      fi=fj;
+    }
+
+    // Compute team totals
+    const teamTotals={};
+    Object.entries(TEAMS).forEach(([owner,info])=>{
+      const gData=[];
+      info.golfers.forEach(gname=>{
+        const st=gStates[gname];
+        if(!st){gData.push({pr:[0,0,0,0],bon:0,fin:0,mc:true});return;}
+        const pr=[...st.curPts];
+        let bon=st.curStreak.reduce((a,b)=>a+b,0);
+        let bf=st.curBF.filter(Boolean).length*3;
+        for(let rd=0;rd<4;rd++){
+          const rem=18-st.holesDone[rd];
+          if(rd+1===curRound&&rem>0){
+            const s=simHoles(rem);pr[rd]+=s.pts;bon+=s.sb;
+          }else if(rd+1>curRound){
+            const s=simHoles(18);pr[rd]=s.pts;bon+=s.sb;
+            if(!s.hasBogey)bf+=3;
+          }
+        }
+        const pos=finPos[normalize(gname)]||999;
+        const fp=FINISH_POINTS[Math.min(pos,40)]||0;
+        const mc=pos>55;
+        gData.push({pr,bon:bon+bf,fin:fp,mc});
+      });
+      let counting=0;
+      for(let rd=0;rd<4;rd++){
+        const topN=rd<2?5:3;
+        counting+=gData.map(g=>g.pr[rd]).sort((a,b)=>b-a).slice(0,topN).reduce((a,b)=>a+b,0);
+      }
+      const bonT=gData.reduce((a,g)=>a+g.bon,0);
+      const finT=gData.reduce((a,g)=>a+g.fin,0);
+      const mc=gData.filter(g=>!g.mc).length;
+      const cp=(mc<3&&gData.some(g=>g.mc))?-10:0;
+      teamTotals[owner]=counting+bonT+finT+cp;
+    });
+
+    const sorted=Object.entries(teamTotals).sort((a,b)=>b[1]-a[1]);
+    wins[sorted[0][0]]++;
+    sorted.slice(0,3).forEach(([t])=>top3[t]++);
+    Object.entries(teamTotals).forEach(([t,p])=>ptsSum[t]+=p);
+  }
+
+  return Object.keys(TEAMS).map(owner=>{
+    const w=wins[owner],prob=w/SIM_COUNT;
+    let odds;
+    if(prob>0.5)odds=String(Math.round(-100*prob/(1-prob)));
+    else if(prob>0)odds='+'+Math.round(100*(1-prob)/prob);
+    else odds='+99999';
+    return{owner,winPct:Math.round(prob*1000)/10,odds,top3Pct:Math.round(top3[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10};
+  }).sort((a,b)=>b.winPct-a.winPct);
+}
+
+function renderOdds(oddsData) {
+  const maxWin=Math.max(...oddsData.map(d=>d.winPct));
+  const maxT3=Math.max(...oddsData.map(d=>d.top3Pct));
+  let html=`<div class="odds-header">
+    <div class="odds-title">Live Vegas Odds</div>
+    <div class="odds-sub">Monte Carlo simulation · ${SIM_COUNT.toLocaleString()} scenarios · Updates with scores</div>
+  </div><div class="odds-list">`;
+
+  oddsData.forEach((d,i)=>{
+    const rs=getRankStyle(i+1);
+    const isFav=i===0;
+    const isNick=d.owner==='Nick';
+    const cardClass=isFav?'odds-favorite':isNick?'odds-nick':'';
+    const oddsClass=d.winPct>=15?'fav':'long';
+    html+=`<div class="odds-card ${cardClass}">
+      <span class="odds-rank" style="background:${rs.bg};color:${rs.color};border:1px solid ${rs.border}">${i+1}</span>
+      <div class="odds-info">
+        <div class="odds-name">
+          ${d.owner}
+          ${isFav?'<span style="font-size:9px;padding:0.15rem 0.4rem;border-radius:9999px;background:rgba(212,175,55,0.15);color:var(--gold);border:1px solid rgba(212,175,55,0.3);font-weight:700;letter-spacing:0.1em">FAVORITE</span>':''}
+          ${isNick?'<span class="your-team-badge">YOUR TEAM</span>':''}
+        </div>
+        <div class="odds-bars">
+          <div class="odds-bar-item">
+            <span>Win ${d.winPct}%</span>
+            <div class="odds-bar"><div class="odds-bar-fill win" style="width:${(d.winPct/maxWin)*100}%"></div></div>
+          </div>
+          <div class="odds-bar-item">
+            <span>Top 3 ${d.top3Pct}%</span>
+            <div class="odds-bar"><div class="odds-bar-fill top3" style="width:${(d.top3Pct/maxT3)*100}%"></div></div>
+          </div>
+          <span class="odds-avg">Avg ${d.avgPts} pts</span>
+        </div>
+      </div>
+      <div class="odds-right">
+        <div class="odds-american ${oddsClass}">${d.odds}</div>
+        <div class="odds-pct">${d.winPct}% implied</div>
+      </div>
+    </div>`;
+  });
+  html+='</div>';
   return html;
 }
 
@@ -1147,6 +1448,8 @@ async function loadScores() {
     document.getElementById('podium').innerHTML = renderPodium(standings);
     document.getElementById('standings').innerHTML = standings.map((s,i) => renderTeamCard(s,i)).join('');
     document.getElementById('leaderboardContent').innerHTML = renderLeaderboard(data);
+    const oddsResults = runOddsSimulation(data);
+    document.getElementById('oddsContent').innerHTML = renderOdds(oddsResults);
     document.getElementById('statusBar').textContent = 'Auto-refreshes every 5 minutes · Data from ESPN';
 
   } catch(err) {
