@@ -1800,9 +1800,20 @@ async function loadScores() {
     document.getElementById('podium').innerHTML = renderPodium(standings);
     document.getElementById('standings').innerHTML = standings.map((s,i) => renderTeamCard(s,i)).join('');
     document.getElementById('leaderboardContent').innerHTML = renderLeaderboard(data);
-    const oddsResults = runOddsSimulation(data);
-    document.getElementById('oddsContent').innerHTML = renderOdds(oddsResults);
-    document.getElementById('statusBar').textContent = 'Auto-refreshes every 5 minutes · Data from ESPN';
+
+    // Only run Monte Carlo when play is in progress
+    const statusStr = (statusDetail || '').toLowerCase();
+    const playActive = statusStr.includes('in progress') || statusStr.includes('suspended');
+    if (playActive || !document.getElementById('oddsContent').innerHTML) {
+      const oddsResults = runOddsSimulation(data);
+      document.getElementById('oddsContent').innerHTML = renderOdds(oddsResults);
+    }
+    // Slow down refresh when play isn't active
+    if (!playActive) {
+      document.getElementById('statusBar').textContent = 'Play complete · Refreshes every 30 min · Data from ESPN';
+    } else {
+      document.getElementById('statusBar').textContent = 'Auto-refreshes every 5 minutes · Data from ESPN';
+    }
 
   } catch(err) {
     console.error('Error loading scores:', err);
@@ -1812,8 +1823,19 @@ async function loadScores() {
   }
 }
 
-loadScores();
-setInterval(loadScores, REFRESH_INTERVAL);
+let currentInterval = null;
+function scheduleRefresh(active) {
+  if (currentInterval) clearInterval(currentInterval);
+  const ms = active ? REFRESH_INTERVAL : 30 * 60 * 1000;
+  currentInterval = setInterval(loadScores, ms);
+}
+async function loadAndSchedule() {
+  await loadScores();
+  const sd = document.getElementById('roundLabel')?.textContent || '';
+  const active = sd.toLowerCase().includes('progress') || sd.toLowerCase().includes('suspended');
+  scheduleRefresh(active);
+}
+loadAndSchedule();
 </script>
 </body>
 </html>
