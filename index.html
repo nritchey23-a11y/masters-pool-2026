@@ -129,9 +129,6 @@
       font-weight: 600;
       font-size: 13px;
       color: var(--cream);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .podium-pts {
       font-size: 1.125rem;
@@ -220,14 +217,11 @@
       border: 1px solid;
       flex-shrink: 0;
     }
-    .team-name-row { display: flex; align-items: center; gap: 0.5rem; }
+    .team-name-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .team-name {
       font-weight: 600;
       font-size: 15px;
       color: var(--cream);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .draft-pick-badge {
       font-size: 9px;
@@ -347,7 +341,7 @@
     }
     .golfer-detail.open { display: block; }
     .golfer-table {
-      min-width: 580px;
+      min-width: 480px;
       width: 100%;
     }
     .golfer-table-header {
@@ -374,13 +368,15 @@
     }
     .golfer-row:nth-child(even) { background: rgba(255,255,255,0.025); }
     .golfer-row.mc { opacity: 0.4; }
-    .golfer-name-cell { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
+    .golfer-name-cell { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.35rem; min-width: 0; }
     .golfer-name {
       font-weight: 500;
       color: var(--cream);
       white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    }
+    @media (max-width: 640px) {
+      .golfer-name-cell { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+      .golfer-badges { display: flex; flex-wrap: wrap; gap: 0.2rem; align-items: center; }
     }
     .mc-badge {
       font-size: 9px;
@@ -1179,9 +1175,11 @@ function renderTeamCard(standing, idx) {
       <div class="golfer-row${mcClass}">
         <div class="golfer-name-cell">
           <span class="golfer-name">${g.name}</span>
-          <span class="rd-badge">Rd ${g.draftRound} · #${g.overallPick}</span>
-          ${g.missedCut ? '<span class="mc-badge">MC</span>' : g.isWD ? '<span class="mc-badge">WD</span>' : g.insideCut ? '<span class="cut-in-badge">✓ In</span>' : '<span class="cut-out-badge">✗ Out</span>'}
-          ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos, g.isTied)} (${formatScoreToPar(g.scoreToPar)}) ${g.thruHoles ? (g.thruHoles === 'F' ? '· F' : '· Thru ' + g.thruHoles) : ''}</span>` : ''}
+          <div class="golfer-badges">
+            <span class="rd-badge">Rd ${g.draftRound} · #${g.overallPick}</span>
+            ${g.missedCut ? '<span class="mc-badge">MC</span>' : g.isWD ? '<span class="mc-badge">WD</span>' : g.insideCut ? '<span class="cut-in-badge">✓ In</span>' : '<span class="cut-out-badge">✗ Out</span>'}
+            ${g.pos && !g.missedCut ? `<span class="pos-badge">${formatPos(g.pos, g.isTied)} (${formatScoreToPar(g.scoreToPar)}) ${g.thruHoles ? (g.thruHoles === 'F' ? '· F' : '· Thru ' + g.thruHoles) : ''}</span>` : ''}
+          </div>
         </div>
         ${rows.join('')}
         <span class="cell ${bonusTotal ? 'bonus' : 'zero'}">${bonusTotal || '—'}</span>
