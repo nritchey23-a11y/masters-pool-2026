@@ -456,6 +456,24 @@
       .team-name-row { gap: 0.25rem 0.35rem; }
       .team-total { font-size: 1.25rem; }
       .draft-pick-badge, .cut-count-badge, .belly-cage-badge, .your-team-badge { font-size: 8px; padding: 0.15rem 0.35rem; }
+      .odds-card {
+        grid-template-columns: 2rem 1fr;
+        gap: 0.5rem;
+      }
+      .odds-right {
+        grid-column: 1 / -1;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        text-align: left;
+        padding-top: 0.25rem;
+        border-top: 1px solid rgba(255,255,255,0.04);
+        margin-top: 0.25rem;
+      }
+      .odds-american { font-size: 1.125rem; }
+      .odds-pct { margin-top: 0; }
+      .odds-bars { flex-wrap: wrap; }
+      .odds-bar { width: 40px; }
     }
     .glow-gold {
       text-shadow: 0 0 20px rgba(212,175,55,0.5);
