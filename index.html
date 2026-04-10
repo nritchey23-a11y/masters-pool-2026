@@ -1713,12 +1713,12 @@ function runOddsSimulation(espnData) {
     else if(prob>0)odds='+'+Math.round(100*(1-prob)/prob);
     else odds='+99999';
     const proj = projections[owner];
-    // Calculate book odds with ~15% vig
+    // Calculate book odds with ~15% vig, rounded to nearest 5
     const VIG = 1.15;
     const vigProb = Math.min(prob * VIG, 0.95);
     let bookOdds;
-    if (vigProb > 0.5) bookOdds = String(Math.round(-100 * vigProb / (1 - vigProb)));
-    else if (vigProb > 0) bookOdds = '+' + Math.round(100 * (1 - vigProb) / vigProb);
+    if (vigProb > 0.5) bookOdds = String(Math.round(-100 * vigProb / (1 - vigProb) / 5) * 5);
+    else if (vigProb > 0) bookOdds = '+' + (Math.round(100 * (1 - vigProb) / vigProb / 5) * 5);
     else bookOdds = '+99999';
 
     return{owner,winPct:Math.round(prob*1000)/10,odds,bookOdds,top2Pct:Math.round(top2[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
