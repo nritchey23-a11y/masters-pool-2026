@@ -1001,8 +1001,10 @@ function computeStandings(espnData) {
   const comp = event.competitions[0];
   const competitors = comp.competitors;
   const compStatus = comp.status?.type || {};
-  const isComplete = compStatus.completed || false;
   const statusDetail = compStatus.detail || '';
+  // Only award finish points after all 4 rounds are done
+  const currentPeriod = comp.status?.period || 1;
+  const isComplete = compStatus.completed && currentPeriod >= 4;
   const positions = determinePositions(competitors);
   const { cutScore, cutPos } = determineCutLine(competitors);
   const standings = [];
