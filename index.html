@@ -207,7 +207,7 @@
       text-align: left;
     }
     .team-header:hover { background: rgba(255,255,255,0.015); }
-    .team-header-left { display: flex; align-items: center; gap: 0.875rem; min-width: 0; }
+    .team-header-left { display: flex; align-items: center; gap: 0.875rem; min-width: 0; flex: 1; overflow: hidden; }
     .rank-badge {
       width: 2.5rem; height: 2.5rem;
       display: inline-flex; align-items: center; justify-content: center;
@@ -217,7 +217,7 @@
       border: 1px solid;
       flex-shrink: 0;
     }
-    .team-name-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .team-name-row { display: flex; align-items: center; gap: 0.35rem 0.5rem; flex-wrap: wrap; max-width: 100%; }
     .team-name {
       font-weight: 600;
       font-size: 15px;
@@ -320,7 +320,7 @@
       color: rgba(245,240,225,0.4);
     }
     .meta-item { display: flex; align-items: center; gap: 0.25rem; }
-    .team-header-right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
+    .team-header-right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; padding-left: 0.5rem; }
     .team-total {
       font-size: 1.5rem;
       font-weight: 700;
@@ -449,6 +449,13 @@
       .round-pill { display: none; }
       main { padding: 1rem 0.875rem 2.5rem; }
       .scoring-grid { grid-template-columns: repeat(2, 1fr); }
+      .team-header { padding: 0.75rem 0.75rem; }
+      .team-header-left { gap: 0.625rem; }
+      .rank-badge { width: 2rem; height: 2rem; font-size: 0.8rem; }
+      .team-name { font-size: 14px; }
+      .team-name-row { gap: 0.25rem 0.35rem; }
+      .team-total { font-size: 1.25rem; }
+      .draft-pick-badge, .cut-count-badge, .belly-cage-badge, .your-team-badge { font-size: 8px; padding: 0.15rem 0.35rem; }
     }
     .glow-gold {
       text-shadow: 0 0 20px rgba(212,175,55,0.5);
