@@ -691,6 +691,12 @@
       color: rgba(245,240,225,0.35);
       margin-top: 2px;
     }
+    .odds-book {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(248,113,113,0.6);
+      margin-top: 1px;
+    }
     .odds-avg {
       font-size: 10px;
       color: rgba(245,240,225,0.3);
@@ -1707,7 +1713,15 @@ function runOddsSimulation(espnData) {
     else if(prob>0)odds='+'+Math.round(100*(1-prob)/prob);
     else odds='+99999';
     const proj = projections[owner];
-    return{owner,winPct:Math.round(prob*1000)/10,odds,top2Pct:Math.round(top2[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
+    // Calculate book odds with ~15% vig
+    const VIG = 1.15;
+    const vigProb = Math.min(prob * VIG, 0.95);
+    let bookOdds;
+    if (vigProb > 0.5) bookOdds = String(Math.round(-100 * vigProb / (1 - vigProb)));
+    else if (vigProb > 0) bookOdds = '+' + Math.round(100 * (1 - vigProb) / vigProb);
+    else bookOdds = '+99999';
+
+    return{owner,winPct:Math.round(prob*1000)/10,odds,bookOdds,top2Pct:Math.round(top2[owner]/SIM_COUNT*1000)/10,avgPts:Math.round(ptsSum[owner]/SIM_COUNT*10)/10,
       projTotal:proj.projTotal, projCurrent:proj.currentPts, projFinish:proj.projFinish, projCutPen:proj.cutPenalty, projCutCount:proj.insideCut};
   }).sort((a,b)=>b.winPct-a.winPct);
 }
@@ -1753,6 +1767,7 @@ function renderOdds(oddsData) {
       <div class="odds-right">
         <div class="odds-american ${oddsClass}">${d.odds}</div>
         <div class="odds-pct">${d.winPct}% implied</div>
+        <div class="odds-book">Book: ${d.bookOdds}</div>
       </div>
     </div>`;
   });
