@@ -1713,8 +1713,8 @@ function runOddsSimulation(espnData) {
     else if(prob>0)odds='+'+(Math.round(100*(1-prob)/prob/5)*5);
     else odds='+99999';
     const proj = projections[owner];
-    // Calculate book odds with ~15% vig, rounded to nearest 5
-    const VIG = 1.15;
+    // Calculate book odds with ~20% vig, rounded to nearest 5
+    const VIG = 1.20;
     const vigProb = Math.min(prob * VIG, 0.95);
     let bookOdds;
     if (vigProb > 0.5) bookOdds = String(Math.round(-100 * vigProb / (1 - vigProb) / 5) * 5);
