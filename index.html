@@ -1127,6 +1127,7 @@ function computeStandings(espnData) {
       ownerName, draftPick, golfers: golferData,
       countingPts, bonusPts, finishTotal, cutPenalty, total: teamTotal,
       insideCutCount,
+      cutIsOfficial: currentPeriod >= 3,
     });
   });
 
@@ -1246,7 +1247,7 @@ function renderTeamCard(standing, idx) {
             <div class="team-name-row">
               <span class="team-name">${standing.ownerName}</span>
               <span class="draft-pick-badge">Pick ${standing.draftPick}</span>
-              <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 ${isComplete || statusDetail.toLowerCase().includes('round 3') || statusDetail.toLowerCase().includes('round 4') ? 'made cut' : 'in cut'}</span>
+              <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 ${standing.cutIsOfficial ? 'made cut' : 'in cut'}</span>
               ${standing.insideCutCount < 3 ? '<span class="belly-cage-badge">⚠️ BELLY CAGE</span>' : ''}
               ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
             </div>
