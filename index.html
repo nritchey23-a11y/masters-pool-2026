@@ -547,6 +547,19 @@
     .lb-row.lb-cut-line {
       border-bottom: 2px dashed rgba(248,113,113,0.4);
     }
+    .lb-row.lb-missed-cut {
+      opacity: 0.35;
+    }
+    .lb-mc-tag {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 0.1rem 0.3rem;
+      border-radius: 3px;
+      background: rgba(248,113,113,0.2);
+      color: #f87171;
+      border: 1px solid rgba(248,113,113,0.3);
+    }
     .lb-pos {
       font-weight: 700;
       font-variant-numeric: tabular-nums;
@@ -1233,7 +1246,7 @@ function renderTeamCard(standing, idx) {
             <div class="team-name-row">
               <span class="team-name">${standing.ownerName}</span>
               <span class="draft-pick-badge">Pick ${standing.draftPick}</span>
-              <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 in cut</span>
+              <span class="cut-count-badge ${standing.insideCutCount >= 3 ? 'cut-safe' : 'cut-danger'}">✂ ${standing.insideCutCount}/6 ${isComplete || statusDetail.toLowerCase().includes('round 3') || statusDetail.toLowerCase().includes('round 4') ? 'made cut' : 'in cut'}</span>
               ${standing.insideCutCount < 3 ? '<span class="belly-cage-badge">⚠️ BELLY CAGE</span>' : ''}
               ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
             </div>
@@ -1443,6 +1456,9 @@ function renderLeaderboard(espnData) {
   </div>`;
 
   let cutLineInserted = false;
+  const currentPeriod = comp.status?.period || 1;
+  const cutIsOfficial = currentPeriod >= 3;
+  const cutLabel = cutIsOfficial ? '— THE CUT —' : '— Projected Cut Line —';
 
   sorted.forEach((c, idx) => {
     const name = c.athlete?.displayName || '?';
@@ -1450,6 +1466,7 @@ function renderLeaderboard(espnData) {
     const order = c.order || idx+1;
     const normName = normalize(name);
     const owner = GOLFER_OWNERS[normName] || null;
+    const missedCut = cutIsOfficial && order > cutPos;
 
     // Determine thru
     let thru = '';
@@ -1487,7 +1504,7 @@ function renderLeaderboard(espnData) {
 
     // Insert cut line marker
     if (!cutLineInserted && order > cutPos) {
-      html += `<div class="lb-row lb-cut-line"><div class="lb-cut-label">— Projected Cut Line —</div></div>`;
+      html += `<div class="lb-row lb-cut-line"><div class="lb-cut-label">${cutLabel}</div></div>`;
       cutLineInserted = true;
     }
 
@@ -1501,10 +1518,12 @@ function renderLeaderboard(espnData) {
     const poolClass = owner ? 'lb-pool-player' : '';
     const scoreDisplay = score === '0' || score === 0 || score === 'E' ? 'E' : (scoreNum > 0 && !String(score).startsWith('+') ? '+'+score : score);
 
-    html += `<div class="lb-row ${poolClass}">
+    const mcClass = missedCut ? ' lb-missed-cut' : '';
+    html += `<div class="lb-row ${poolClass}${mcClass}">
       <span class="lb-pos ${posClass}">${posDisplay}</span>
       <div class="lb-name-cell">
         <span class="lb-player-name">${name}</span>
+        ${missedCut ? '<span class="lb-mc-tag">MC</span>' : ''}
         ${owner ? `<span class="lb-owner-tag">↳ ${owner}'s team</span>` : ''}
       </div>
       <span class="lb-score ${scoreClass}">${scoreDisplay}</span>
