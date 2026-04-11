@@ -1001,18 +1001,51 @@ function parseScore(scoreStr) {
   return parseInt(scoreStr);
 }
 
-function determineCutLine(competitors) {
-  // Masters: top 50 + ties make the cut after Round 2
-  const sorted = [...competitors].sort((a,b) => (a.order||999)-(b.order||999));
-  if (sorted.length < 50) return { cutScore: null, cutPos: 50 };
-  const p50Score = parseScore(sorted[49].score);
-  // Find last position that ties with the 50th player's score
-  let cutPos = 50;
-  for (let i=50; i<sorted.length; i++) {
-    if (parseScore(sorted[i].score) === p50Score) cutPos = i+1;
-    else break;
+function getR2Score(competitor) {
+  // Sum R1+R2 strokes and compare to par (144 for 2 rounds)
+  let total = 0, hasR2 = false;
+  for (const ls of (competitor.linescores || [])) {
+    if (ls.period === 1 || ls.period === 2) {
+      const holes = (ls.linescores || []).filter(h => h.value != null && String(h.value) !== '');
+      if (holes.length === 18) {
+        hasR2 = ls.period === 2 ? true : hasR2;
+        total += holes.reduce((s, h) => s + parseInt(h.value), 0);
+      }
+    }
   }
-  return { cutScore: p50Score, cutPos };
+  return hasR2 ? total - 144 : null; // vs par after 2 rounds
+}
+
+function determineCutLine(competitors, currentPeriod) {
+  // Masters: top 50 + ties make the cut after Round 2
+  if (currentPeriod >= 3) {
+    // Cut is official — use R2 scores to determine who made it
+    const r2Scores = competitors.map(c => ({
+      id: c.id, order: c.order, r2: getR2Score(c)
+    })).filter(c => c.r2 !== null).sort((a, b) => a.r2 - b.r2);
+    if (r2Scores.length < 50) return { cutScore: null, cutPos: 50, cutPlayerIds: new Set() };
+    const p50 = r2Scores[49].r2;
+    // Include all ties at the cut score
+    const madeCut = new Set();
+    for (const c of r2Scores) {
+      if (c.r2 <= p50) madeCut.add(c.id);
+    }
+    return { cutScore: p50, cutPos: madeCut.size, cutPlayerIds: madeCut };
+  } else {
+    // Before cut — use current leaderboard position as projection
+    const sorted = [...competitors].sort((a,b) => (a.order||999)-(b.order||999));
+    if (sorted.length < 50) return { cutScore: null, cutPos: 50, cutPlayerIds: new Set() };
+    const p50Score = parseScore(sorted[49].score);
+    let cutPos = 50;
+    const madeCut = new Set();
+    for (let i=0; i<sorted.length; i++) {
+      if (parseScore(sorted[i].score) <= p50Score) {
+        cutPos = i+1;
+        madeCut.add(sorted[i].id);
+      }
+    }
+    return { cutScore: p50Score, cutPos, cutPlayerIds: madeCut };
+  }
 }
 
 function computeStandings(espnData) {
@@ -1025,7 +1058,7 @@ function computeStandings(espnData) {
   const currentPeriod = comp.status?.period || 1;
   const isComplete = compStatus.completed && currentPeriod >= 4;
   const positions = determinePositions(competitors);
-  const { cutScore, cutPos } = determineCutLine(competitors);
+  const { cutScore, cutPos, cutPlayerIds } = determineCutLine(competitors, currentPeriod);
   const standings = [];
 
   Object.entries(TEAMS).forEach(([ownerName, teamInfo], teamIdx) => {
@@ -1077,9 +1110,8 @@ function computeStandings(espnData) {
       const finishPts = isComplete ? (FINISH_POINTS[pos]||0) : 0;
       const total = totalHP + totalSB + totalBF + allIn60sBonus + finishPts;
 
-      // Determine if inside projected cut (top 50 + ties)
-      const playerOrder = player.order || 999;
-      const insideCut = playerOrder <= cutPos;
+      // Determine if inside cut (uses R2 scores when cut is official)
+      const insideCut = cutPlayerIds.has(player.id);
       const playerStatus = player.status?.type?.name || '';
       const actuallyMissedCut = playerStatus === 'cut';
       const isWD = playerStatus === 'wd';
@@ -1434,7 +1466,8 @@ function renderLeaderboard(espnData) {
   const event = espnData.events[0];
   const comp = event.competitions[0];
   const competitors = comp.competitors;
-  const { cutScore, cutPos } = determineCutLine(competitors);
+  const currentPeriodLB = comp.status?.period || 1;
+  const { cutScore, cutPos, cutPlayerIds: lbCutIds } = determineCutLine(competitors, currentPeriodLB);
 
   const sorted = [...competitors].sort((a,b) => (a.order||999)-(b.order||999));
 
@@ -1467,7 +1500,7 @@ function renderLeaderboard(espnData) {
     const order = c.order || idx+1;
     const normName = normalize(name);
     const owner = GOLFER_OWNERS[normName] || null;
-    const missedCut = cutIsOfficial && order > cutPos;
+    const missedCut = cutIsOfficial && !lbCutIds.has(c.id);
 
     // Determine thru
     let thru = '';
@@ -1504,7 +1537,7 @@ function renderLeaderboard(espnData) {
     }
 
     // Insert cut line marker
-    if (!cutLineInserted && order > cutPos) {
+    if (!cutLineInserted && (cutIsOfficial ? !lbCutIds.has(c.id) : order > cutPos)) {
       html += `<div class="lb-row lb-cut-line"><div class="lb-cut-label">${cutLabel}</div></div>`;
       cutLineInserted = true;
     }
@@ -1692,8 +1725,8 @@ function runOddsSimulation(espnData) {
       const bf = st.curBF.filter(Boolean).length * 3;
       
       // Check if inside projected cut (top 50 + ties)
-      const { cutPos: cp2 } = determineCutLine(competitors);
-      const inCut = st.order <= cp2;
+      const { cutPlayerIds: cp2ids } = determineCutLine(competitors, curRound);
+      const inCut = cp2ids.has(findPlayer(competitors, gname)?.id);
       if (inCut) insideCut++;
       
       // Finish points based on current position
