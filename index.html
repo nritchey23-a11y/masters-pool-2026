@@ -819,6 +819,10 @@
   </div>
 </header>
 
+<div id="finalBanner" style="display:none;background:linear-gradient(135deg,rgba(212,175,55,0.15),rgba(0,103,71,0.2));border-bottom:2px solid rgba(212,175,55,0.4);padding:1rem 1.25rem;text-align:center">
+  <div style="font-family:var(--font-display);font-size:1.25rem;color:var(--gold);margin-bottom:0.25rem">FINAL — 2026 Masters Champion: Rory McIlroy (-12)</div>
+  <div style="font-size:12px;color:rgba(245,240,225,0.5)">Pool Winner: Kelly (169 pts) · Runner-up: Berit (145 pts) · Tournament concluded April 12, 2026</div>
+</div>
 <main>
   <div id="loadingState" class="loading-state">
     <div class="spinner"></div>
@@ -1861,8 +1865,12 @@ async function loadScores() {
       const oddsResults = runOddsSimulation(data);
       document.getElementById('oddsContent').innerHTML = renderOdds(oddsResults);
     }
-    // Slow down refresh when play isn't active
-    if (!playActive) {
+    // Show final banner and manage refresh
+    const isTournamentFinal = statusDetail.toLowerCase().includes('final');
+    if (isTournamentFinal) {
+      document.getElementById('finalBanner').style.display = 'block';
+      document.getElementById('statusBar').textContent = 'Tournament complete · Final standings · Data from ESPN';
+    } else if (!playActive) {
       document.getElementById('statusBar').textContent = 'Play complete · Refreshes every 30 min · Data from ESPN';
     } else {
       document.getElementById('statusBar').textContent = 'Auto-refreshes every 5 minutes · Data from ESPN';
@@ -1885,8 +1893,14 @@ function scheduleRefresh(active) {
 async function loadAndSchedule() {
   await loadScores();
   const sd = document.getElementById('roundLabel')?.textContent || '';
-  const active = sd.toLowerCase().includes('progress') || sd.toLowerCase().includes('suspended');
-  scheduleRefresh(active);
+  const isFinal = sd.toLowerCase().includes('final');
+  if (isFinal) {
+    // Tournament over — no more refreshing
+    if (currentInterval) clearInterval(currentInterval);
+  } else {
+    const active = sd.toLowerCase().includes('progress') || sd.toLowerCase().includes('suspended');
+    scheduleRefresh(active);
+  }
 }
 loadAndSchedule();
 </script>
