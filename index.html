@@ -1833,11 +1833,115 @@ function renderOdds(oddsData) {
 }
 
 // ─── Data Fetching ────────────────────────────────────────────────────────────
+const ARCHIVE_MODE = true; // Masters is over — use frozen data
+
+function renderFromArchive(archiveData) {
+  document.getElementById('loadingState').style.display = 'none';
+  document.getElementById('errorState').style.display = 'none';
+  document.getElementById('mainContent').style.display = 'block';
+  document.getElementById('finalBanner').style.display = 'block';
+  document.getElementById('roundLabel').textContent = 'FINAL';
+  document.getElementById('lastUpdated').innerHTML = '<span>Archived · April 12, 2026</span>';
+
+  const standings = archiveData.standings.sort((a,b) => b.totalPoints - a.totalPoints);
+
+  // Render podium
+  const top3 = standings.slice(0,3);
+  const colors = [['var(--gold)','podium-gold'],['var(--silver)','podium-silver'],['var(--bronze)','podium-bronze']];
+  const labels = ['1ST','2ND','3RD'];
+  document.getElementById('podium').innerHTML = top3.map((s,i) => `
+    <div class="podium-card ${colors[i][1]}">
+      <div class="podium-label" style="color:${colors[i][0]}">${labels[i]}</div>
+      <div class="podium-name">${s.team.ownerName}</div>
+      <div class="podium-pts" style="color:${colors[i][0]}">${s.totalPoints}<span class="podium-pts-label">PTS</span></div>
+    </div>
+  `).join('');
+
+  // Render standings cards
+  document.getElementById('standings').innerHTML = standings.map((s, idx) => {
+    const rank = idx + 1;
+    const owner = s.team.ownerName;
+    const isNick = owner === 'Nick';
+    const rs = getRankStyle(rank);
+    const borderClass = isNick ? 'team-card-nick' : rank===1?'team-card-rank-1':rank===2?'team-card-rank-2':rank===3?'team-card-rank-3':'team-card-default';
+    const cardId = 'archive-'+idx;
+
+    const golferRows = s.golfers.map(g => {
+      const gname = g.golfer.name;
+      const gpts = g.totalGolferPoints;
+      return `<div class="golfer-row">
+        <div class="golfer-name-cell"><span class="golfer-name">${gname}</span></div>
+        <span class="cell total" style="text-align:center">${gpts}</span>
+      </div>`;
+    }).join('');
+
+    return `<div class="team-card ${borderClass}">
+      <button class="team-header" onclick="toggleCard('${cardId}')">
+        <div class="team-header-left">
+          <span class="rank-badge" style="background:${rs.bg};color:${rs.color};border-color:${rs.border}">${rank}</span>
+          <div>
+            <div class="team-name-row">
+              <span class="team-name">${owner}</span>
+              ${isNick ? '<span class="your-team-badge">YOUR TEAM</span>' : ''}
+            </div>
+            <div class="team-meta">
+              <span class="meta-item">⛳ ${s.countingPoints}</span>
+              <span class="meta-item">★ ${s.bonusPoints}</span>
+              <span class="meta-item">↑ ${s.finishPoints}</span>
+              ${s.cutPenalty ? '<span class="meta-item" style="color:#f87171">✂ '+s.cutPenalty+'</span>' : ''}
+            </div>
+          </div>
+        </div>
+        <div class="team-header-right">
+          <span class="team-total" style="color:${rank===1?'var(--gold)':'var(--cream)'}">${s.totalPoints}</span>
+          <svg class="chevron" id="chevron-${cardId}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+      </button>
+      <div class="golfer-detail" id="detail-${cardId}">
+        <div style="padding:0.5rem">
+          <div style="display:grid;grid-template-columns:1fr 60px;gap:4px;padding:0.4rem 0.5rem;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:rgba(245,240,225,0.4);background:rgba(0,103,71,0.08);border-radius:0.5rem;margin-bottom:0.25rem">
+            <span>Golfer</span><span style="text-align:center">Points</span>
+          </div>
+          ${golferRows}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Hide leaderboard and odds tabs for archive (no ESPN data)
+  document.getElementById('tabLeaderboard').innerHTML = '<div style="text-align:center;padding:2rem;color:rgba(245,240,225,0.4);font-size:13px">Tournament leaderboard archived · Final results shown on Pool Standings tab</div>';
+  document.getElementById('tabOdds').innerHTML = '<div style="text-align:center;padding:2rem;color:rgba(245,240,225,0.4);font-size:13px">Live odds simulation ended · Kelly won the pool with 169 pts</div>';
+  document.getElementById('statusBar').textContent = 'Tournament complete · Final standings · Archived April 12, 2026';
+}
+
 async function loadScores() {
   try {
+    let data;
+    if (ARCHIVE_MODE) {
+      // Tournament is over — ESPN no longer has Masters data
+      // Try to load the frozen pool_scores.json for static display
+      const archiveResp = await fetch('./pool_scores.json?t=' + Date.now());
+      if (archiveResp.ok) {
+        const archiveData = await archiveResp.json();
+        renderFromArchive(archiveData);
+        return;
+      }
+    }
     const resp = await fetch(ESPN_URL + '?t=' + Date.now());
     if (!resp.ok) throw new Error('ESPN fetch failed');
-    const data = await resp.json();
+    data = await resp.json();
+    // Verify this is actually the Masters, not a different tournament
+    const eventName = (data.events?.[0]?.name || '').toLowerCase();
+    if (!eventName.includes('masters')) {
+      // ESPN moved on to the next tournament — try archive
+      const archiveResp = await fetch('./pool_scores.json?t=' + Date.now());
+      if (archiveResp.ok) {
+        const archiveData = await archiveResp.json();
+        renderFromArchive(archiveData);
+        return;
+      }
+      throw new Error('Masters data no longer available');
+    }
     const { standings, statusDetail } = computeStandings(data);
 
     document.getElementById('loadingState').style.display = 'none';
